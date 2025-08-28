@@ -1,0 +1,2 @@
+C:/Users/Akshat/AndroidStudioProjects/login_signup/build/.cxx/debug/5k2i4e4g/arm64-v8a/CMakeFiles/edit_cache.dir
+C:/Users/Akshat/AndroidStudioProjects/login_signup/build/.cxx/debug/5k2i4e4g/arm64-v8a/CMakeFiles/rebuild_cache.dir

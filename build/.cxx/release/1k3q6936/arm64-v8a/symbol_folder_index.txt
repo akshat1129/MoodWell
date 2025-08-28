@@ -1,0 +1,1 @@
+C:\Users\Akshat\AndroidStudioProjects\login_signup\build\app\intermediates\cxx\release\1k3q6936\obj\arm64-v8a
