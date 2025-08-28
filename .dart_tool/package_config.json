@@ -117,9 +117,9 @@
     },
     {
       "name": "fl_chart",
-      "rootUri": "file:///C:/Users/Akshat/AppData/Local/Pub/Cache/hosted/pub.dev/fl_chart-0.68.0",
+      "rootUri": "file:///C:/Users/Akshat/AppData/Local/Pub/Cache/hosted/pub.dev/fl_chart-0.63.0",
       "packageUri": "lib/",
-      "languageVersion": "3.2"
+      "languageVersion": "3.0"
     },
     {
       "name": "flutter",
