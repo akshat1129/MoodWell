@@ -1,6 +1,8 @@
+// lib/splash_screen.dart
+
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'main.dart'; // Make sure this imports your main.dart file
+import 'main.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -30,20 +32,48 @@ class _SplashScreenState extends State<SplashScreen> {
       }
     });
 
-
     Future.delayed(const Duration(seconds: 3), () {
       if (mounted) {
         Navigator.of(context).pushReplacement(
-          MaterialPageRoute(
-            builder: (context) => const MyHomePage(title: 'MoodWell'),
-          ),
+          _createMorphTransition(),
         );
       }
     });
   }
 
-  @override
-  @override
+  Route _createMorphTransition() {
+    return PageRouteBuilder(
+      transitionDuration: const Duration(milliseconds: 800),
+      pageBuilder: (context, animation, secondaryAnimation) =>
+      const MyHomePage(title: 'MoodWell'),
+      transitionsBuilder: (context, animation, secondaryAnimation, child) {
+        final fadeAnimation = Tween<double>(
+          begin: 0.0,
+          end: 1.0,
+        ).animate(CurvedAnimation(
+          parent: animation,
+          curve: Curves.easeInOut,
+        ));
+
+        final slideAnimation = Tween<Offset>(
+          begin: const Offset(0.0, 0.3),
+          end: Offset.zero,
+        ).animate(CurvedAnimation(
+          parent: animation,
+          curve: Curves.easeOut,
+        ));
+
+        return FadeTransition(
+          opacity: fadeAnimation,
+          child: SlideTransition(
+            position: slideAnimation,
+            child: child,
+          ),
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -51,15 +81,7 @@ class _SplashScreenState extends State<SplashScreen> {
         children: [
           Container(
             decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [
-                  Colors.deepPurple.shade400,
-                  Colors.deepPurple.shade600,
-                  Colors.deepPurple.shade800,
-                ],
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-              ),
+              color: const Color(0xffd5a9b4), // Deeper Dusty Rose
             ),
           ),
           Align(

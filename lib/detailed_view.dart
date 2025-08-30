@@ -7,6 +7,7 @@ import 'package:intl/intl.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:fl_chart/fl_chart.dart';
+import 'mood_service.dart'; // ✨ IMPORT the new service
 
 class EntryDetailsPage extends StatefulWidget {
   final String mood;
@@ -56,7 +57,8 @@ class _EntryDetailsPageState extends State<EntryDetailsPage>
       final serverTimestamp = (doc.data()['timestamp'] as Timestamp).toDate();
       final localTimestamp = serverTimestamp.toLocal();
       final dateKey = DateTime(localTimestamp.year, localTimestamp.month, localTimestamp.day);
-      final moodValue = _moodToValue(doc.data()['mood']);
+      // ✨ USE MoodService
+      final moodValue = MoodService.moodToValue(doc.data()['mood']);
       moodValuesByDate.update(dateKey, (value) => [...value, moodValue], ifAbsent: () => [moodValue]);
     }
 
@@ -73,7 +75,6 @@ class _EntryDetailsPageState extends State<EntryDetailsPage>
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return "Not available";
 
-    // Query for all entries within the current streak
     final querySnapshot = await FirebaseFirestore.instance
         .collection('entries')
         .where('userId', isEqualTo: user.uid)
@@ -81,39 +82,36 @@ class _EntryDetailsPageState extends State<EntryDetailsPage>
         .get();
 
     if (querySnapshot.docs.isEmpty) {
-      return _valueToMood(_moodToValue(widget.mood)); // Fallback to today's mood
+      // ✨ USE MoodService
+      return MoodService.valueToMood(MoodService.moodToValue(widget.mood));
     }
 
-    // Sum the mood values
     double totalMoodValue = 0;
     for (var doc in querySnapshot.docs) {
-      totalMoodValue += _moodToValue(doc.data()['mood']);
+      // ✨ USE MoodService
+      totalMoodValue += MoodService.moodToValue(doc.data()['mood']);
     }
 
-    // Calculate the average
     final averageValue = totalMoodValue / querySnapshot.docs.length;
 
-    // Convert the average value back to a mood string (e.g., "Good")
-    return _valueToMood(averageValue);
+    // ✨ USE MoodService
+    return MoodService.valueToMood(averageValue);
   }
 
   void _showStreakDetailsDialog() async {
     final String averageMood = await _calculateAverageMood();
 
-    // 1. Get the position of the streak counter on the screen
     final RenderBox renderBox = _streakCounterKey.currentContext!.findRenderObject() as RenderBox;
     final size = renderBox.size;
     final position = renderBox.localToGlobal(Offset.zero);
 
-    // We replace showDialog with showGeneralDialog for custom animations
     showGeneralDialog(
       context: context,
       barrierDismissible: true,
       barrierLabel: 'Dismiss',
-      barrierColor: Colors.black.withOpacity(0.5), // The dimming color
+      barrierColor: Colors.black.withOpacity(0.5),
       transitionDuration: const Duration(milliseconds: 300),
       pageBuilder: (context, animation, secondaryAnimation) {
-        // This is a required placeholder. The actual UI is in the transitionBuilder.
         return Container();
       },
       transitionBuilder: (context, animation, secondaryAnimation, child) {
@@ -121,20 +119,16 @@ class _EntryDetailsPageState extends State<EntryDetailsPage>
         final baseFontSize = screenWidth * 0.04;
         final formattedDate = DateFormat.yMMMMd().format(widget.streakStartDate);
 
-        // Create a curved animation for a smoother effect
         final scaleAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
           CurvedAnimation(parent: animation, curve: Curves.easeInOut),
         );
 
-        // 2. Wrap your existing dialog UI in a ScaleTransition
         return ScaleTransition(
           scale: scaleAnimation,
-          // This alignment makes the animation originate from the streak counter
           alignment: Alignment(
             (position.dx + size.width / 2) / screenWidth * 2 - 1,
             (position.dy + size.height / 2) / MediaQuery.of(context).size.height * 2 - 1,
           ),
-          // YOUR ORIGINAL UI CODE STARTS HERE (UNCHANGED)
           child: BackdropFilter(
             filter: ImageFilter.blur(sigmaX: 5, sigmaY: 5),
             child: Dialog(
@@ -158,7 +152,7 @@ class _EntryDetailsPageState extends State<EntryDetailsPage>
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           Icon(Icons.local_fire_department_rounded, color: Colors.orange.shade400, size: baseFontSize * 3),
-                          SizedBox(height: 16),
+                          const SizedBox(height: 16),
                           Text(
                             "You're on a ${widget.currentStreak}-day streak!",
                             textAlign: TextAlign.center,
@@ -168,21 +162,21 @@ class _EntryDetailsPageState extends State<EntryDetailsPage>
                               fontWeight: FontWeight.bold,
                             ),
                           ),
-                          SizedBox(height: 8),
+                          const SizedBox(height: 8),
                           Text(
                             "This streak started on $formattedDate.",
                             textAlign: TextAlign.center,
                             style: TextStyle(color: Colors.white70, fontSize: baseFontSize * 0.9),
                           ),
-                          SizedBox(height: 20),
+                          const SizedBox(height: 20),
                           const Divider(color: Colors.white24),
-                          SizedBox(height: 20),
+                          const SizedBox(height: 20),
                           Text(
                             "Your average mood during this streak has been:",
                             textAlign: TextAlign.center,
                             style: TextStyle(color: Colors.white70, fontSize: baseFontSize * 0.9),
                           ),
-                          SizedBox(height: 8),
+                          const SizedBox(height: 8),
                           Text(
                             averageMood,
                             style: TextStyle(
@@ -229,22 +223,7 @@ class _EntryDetailsPageState extends State<EntryDetailsPage>
     _monthlyMoodData = _fetchMonthlyMoodData();
   }
 
-  String _valueToMood(double value) {
-    switch (value.round()) {
-      case 5:
-        return "Very Good";
-      case 4:
-        return "Good";
-      case 3:
-        return "Neutral";
-      case 2:
-        return "Low";
-      case 1:
-        return "Very Low";
-      default:
-        return "Unknown";
-    }
-  }
+  // ✨ REMOVED _valueToMood function
 
   String _formatHour(double hourValue) {
     int hours = hourValue.floor();
@@ -263,22 +242,7 @@ class _EntryDetailsPageState extends State<EntryDetailsPage>
     return "${hours.toString()}:${minutes.toString().padLeft(2, '0')} $period";
   }
 
-  double _moodToValue(String mood) {
-    switch (mood) {
-      case "Very Good":
-        return 5.0;
-      case "Good":
-        return 4.0;
-      case "Neutral":
-        return 3.0;
-      case "Low":
-        return 2.0;
-      case "Very Low":
-        return 1.0;
-      default:
-        return 0.0;
-    }
-  }
+  // ✨ REMOVED _moodToValue function
 
   Future<List<FlSpot>> _fetchDailyMoodData() async {
     final user = FirebaseAuth.instance.currentUser;
@@ -299,13 +263,15 @@ class _EntryDetailsPageState extends State<EntryDetailsPage>
     List<FlSpot> spots = querySnapshot.docs.map((doc) {
       final serverTimestamp = (doc.data()['timestamp'] as Timestamp).toDate();
       final localTimestamp = serverTimestamp.toLocal();
-      final moodValue = _moodToValue(doc.data()['mood']);
+      // ✨ USE MoodService
+      final moodValue = MoodService.moodToValue(doc.data()['mood']);
       final hour = localTimestamp.hour.toDouble() + (localTimestamp.minute.toDouble() / 60.0);
       return FlSpot(hour, moodValue);
     }).toList();
 
     final currentHour = nowLocal.hour.toDouble() + (nowLocal.minute.toDouble() / 60.0);
-    final currentMoodValue = _moodToValue(widget.mood);
+    // ✨ USE MoodService
+    final currentMoodValue = MoodService.moodToValue(widget.mood);
     final currentSpot = FlSpot(currentHour, currentMoodValue);
 
     spots.add(currentSpot);
@@ -338,7 +304,8 @@ class _EntryDetailsPageState extends State<EntryDetailsPage>
       final serverTimestamp = (data['timestamp'] as Timestamp).toDate();
       final localTimestamp = serverTimestamp.toLocal();
       final dateKey = DateFormat('yyyy-MM-dd').format(localTimestamp);
-      final moodValue = _moodToValue(data['mood']);
+      // ✨ USE MoodService
+      final moodValue = MoodService.moodToValue(data['mood']);
 
       moodValuesByDate.update(dateKey, (value) => [...value, moodValue], ifAbsent: () => [moodValue]);
     }
@@ -382,7 +349,8 @@ class _EntryDetailsPageState extends State<EntryDetailsPage>
     for (var doc in querySnapshot.docs) {
       final data = doc.data();
       final timestamp = (data['timestamp'] as Timestamp).toDate().toLocal();
-      final moodValue = _moodToValue(data['mood']);
+      // ✨ USE MoodService
+      final moodValue = MoodService.moodToValue(data['mood']);
       final dayOfMonth = timestamp.day;
 
       moodValuesByDay.update(dayOfMonth, (value) => [...value, moodValue], ifAbsent: () => [moodValue]);
@@ -415,9 +383,9 @@ class _EntryDetailsPageState extends State<EntryDetailsPage>
         foregroundColor: Colors.white,
       ),
       body: Container(
-        decoration: BoxDecoration(
+        decoration: const BoxDecoration(
           gradient: LinearGradient(
-            colors: [Colors.deepPurple.shade400, Colors.deepPurple.shade800],
+            colors: [Color(0xff8c6ebf), Color(0xff5c88bb)],
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
           ),
@@ -438,7 +406,7 @@ class _EntryDetailsPageState extends State<EntryDetailsPage>
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            'Your Mood Today:',
+                            'Your Mood:',
                             style: TextStyle(
                               color: Colors.white70,
                               fontSize: baseFontSize,
@@ -537,13 +505,7 @@ class _EntryDetailsPageState extends State<EntryDetailsPage>
   Widget _buildCalendar(double screenWidth, double screenHeight) {
     final baseFontSize = screenWidth * 0.04;
 
-    final Map<int, Color> colorThresholds = {
-      1: Colors.indigo.shade900.withOpacity(0.8) ,        // Very Low
-      2: Colors.deepPurple.shade900.withOpacity(0.8),     // Low
-      3: Colors.brown.shade800.withOpacity(0.8),          // Neutral (New)
-      4: Colors.deepOrange.shade300.withOpacity(0.8),     // Good
-      5: Colors.deepOrange.shade800.withOpacity(0.8),     // Very Good
-    };
+    // ✨ REMOVED local colorThresholds map
 
     return Column(
       children: [
@@ -553,7 +515,7 @@ class _EntryDetailsPageState extends State<EntryDetailsPage>
         ),
         SizedBox(height: screenHeight * 0.015),
         FutureBuilder<Map<DateTime, int>>(
-          future: _fetchLast10DaysMood(), // Call the new data fetching function
+          future: _fetchLast10DaysMood(),
           builder: (context, snapshot) {
             if (!snapshot.hasData) {
               return const SizedBox(height: 100, child: Center(child: CircularProgressIndicator()));
@@ -570,10 +532,12 @@ class _EntryDetailsPageState extends State<EntryDetailsPage>
               final now = DateTime.now();
               final isToday = date.year == now.year && date.month == now.month && date.day == now.day;
               final bool isMarked = date.isBefore(now) || isToday;
+              final moodValue = dailyMoods[dateKey];
 
               Color backgroundColor;
-              if (isMarked && dailyMoods.containsKey(dateKey)) {
-                backgroundColor = colorThresholds[dailyMoods[dateKey]] ?? Colors.black.withOpacity(0.1);
+              if (isMarked && moodValue != null) {
+                // ✨ USE MoodService
+                backgroundColor = MoodService.getCalendarColor(moodValue);
               } else if (isMarked) {
                 backgroundColor = Colors.deepPurple.shade300.withOpacity(0.8);
               } else {
@@ -642,7 +606,6 @@ class _EntryDetailsPageState extends State<EntryDetailsPage>
             borderRadius: BorderRadius.circular(12),
             color: Colors.black.withOpacity(0.2),
             border: Border.all(color: Colors.deepPurple.shade200, width: 2),
-            // ✨ REMOVED the boxShadow property to ditch the glow
           ),
           tabs: [
             Tab(
@@ -729,13 +692,13 @@ class _EntryDetailsPageState extends State<EntryDetailsPage>
                   getTooltipItems: (touchedSpots) {
                     return touchedSpots.map((barSpot) {
                       final time = _formatHour(barSpot.x);
-                      final mood = _valueToMood(barSpot.y);
+                      // ✨ USE MoodService
+                      final mood = MoodService.valueToMood(barSpot.y);
                       return LineTooltipItem(
                         '$mood\n',
                         TextStyle(
                           color: Colors.white,
                           fontWeight: FontWeight.bold,
-                          // ✨ Responsive font size
                           fontSize: screenWidth * 0.035,
                         ),
                         children: [
@@ -773,8 +736,8 @@ class _EntryDetailsPageState extends State<EntryDetailsPage>
                 LineChartBarData(
                   spots: snapshot.data!,
                   isCurved: false,
-                  barWidth: 0,
-                  color: Colors.transparent,
+                  barWidth: 1,
+                  color: Colors.yellow,
                   dotData: FlDotData(
                     show: true,
                     getDotPainter: (spot, percent, barData, index) =>
@@ -841,7 +804,8 @@ class _EntryDetailsPageState extends State<EntryDetailsPage>
                   tooltipMargin: 12,
                   getTooltipItems: (touchedSpots) {
                     return touchedSpots.map((barSpot) {
-                      final mood = _valueToMood(barSpot.y);
+                      // ✨ USE MoodService
+                      final mood = MoodService.valueToMood(barSpot.y);
                       final dayIndex = 6 - barSpot.x.toInt();
                       final day = DateFormat.E().format(DateTime.now().subtract(Duration(days: dayIndex)));
 
@@ -951,7 +915,8 @@ class _EntryDetailsPageState extends State<EntryDetailsPage>
                   fitInsideVertically: true,
                   getTooltipItems: (touchedSpots) {
                     return touchedSpots.map((barSpot) {
-                      final mood = _valueToMood(barSpot.y);
+                      // ✨ USE MoodService
+                      final mood = MoodService.valueToMood(barSpot.y);
                       final dayOfMonth = barSpot.x.toInt();
                       final now = DateTime.now();
                       final date = DateTime(now.year, now.month, dayOfMonth);
@@ -997,9 +962,9 @@ class _EntryDetailsPageState extends State<EntryDetailsPage>
               lineBarsData: [
                 LineChartBarData(
                   spots: snapshot.data!,
-                  isCurved: true,
-                  color: Colors.amber,
-                  barWidth: 3,
+                  isCurved: false,
+                  color: Colors.yellow,
+                  barWidth: 1,
                   dotData: FlDotData(
                     show: true,
                     getDotPainter: (spot, percent, barData, index) =>
@@ -1011,7 +976,7 @@ class _EntryDetailsPageState extends State<EntryDetailsPage>
                         ),
                   ),
                   belowBarData: BarAreaData(
-                    show: true,
+                    show: false,
                     color: Colors.amber.withOpacity(0.2),
                   ),
                 ),
@@ -1094,26 +1059,12 @@ class _EntryDetailsPageState extends State<EntryDetailsPage>
       reservedSize: 39,
       interval: 1,
       getTitlesWidget: (value, meta) {
-        String emoji;
-        switch (value.toInt()) {
-          case 1:
-            emoji = '😞';
-            break;
-          case 2:
-            emoji = '🙁';
-            break;
-          case 3:
-            emoji = '😐';
-            break;
-          case 4:
-            emoji = '😊';
-            break;
-          case 5:
-            emoji = '😁';
-            break;
-          default:
-            return Container();
+        final intValue = value.toInt();
+        if (intValue < 1 || intValue > 5) {
+          return Container();
         }
+        // ✨ USE MoodService to get the emoji
+        final emoji = MoodService.getChartEmoji(intValue);
         return SideTitleWidget(
           axisSide: meta.axisSide,
           space: 8.0,

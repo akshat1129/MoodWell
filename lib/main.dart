@@ -2,6 +2,7 @@
 
 import 'package:flutter/material.dart';
 import 'detailed_view.dart';
+import 'mood_service.dart';
 import 'dart:ui';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -9,7 +10,9 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:animated_digit/animated_digit.dart';
 import 'dart:math';
 import 'package:simple_animations/simple_animations.dart';
+import 'package:intl/intl.dart';
 import 'splash_screen.dart';
+
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -50,47 +53,10 @@ class _MyHomePageState extends State<MyHomePage> {
   bool _isAuthReady = false;
   bool _hasLoggedToday = false;
 
-  final List<String> texts = ["Very Low", "Low", "Neutral", "Good", "Very Good"];
-  final List<String> emojis = ["😢", "☹️", "😐", "🙂", "😄"];
-
-  final List<List<Color>> moodColors = [
-    [const Color(0xff2c3e50), const Color(0xff4b6584)],
-    [const Color(0xff89909c), const Color(0xffb3b9c4)],
-    [const Color(0xff2980b9), const Color(0xff6dd5fa)],
-    [const Color(0xfff1c40f), const Color(0xfff39c12)],
-    [const Color(0xffff5f6d), const Color(0xffffc371)],
-  ];
-
   @override
   void initState() {
     super.initState();
     _signInAnonymously();
-  }
-
-  LinearGradient _calculateAnimatedGradient() {
-    final position = _currentValue * (moodColors.length - 1);
-    final fromIndex = position.floor();
-    final toIndex = position.ceil();
-    final t = position - fromIndex;
-
-    if (fromIndex == toIndex) {
-      return LinearGradient(
-        colors: moodColors[fromIndex],
-        begin: Alignment.topLeft,
-        end: Alignment.bottomRight,
-      );
-    }
-
-    final topColor =
-    Color.lerp(moodColors[fromIndex][0], moodColors[toIndex][0], t);
-    final bottomColor =
-    Color.lerp(moodColors[fromIndex][1], moodColors[toIndex][1], t);
-
-    return LinearGradient(
-      colors: [topColor!, bottomColor!],
-      begin: Alignment.topLeft,
-      end: Alignment.bottomRight,
-    );
   }
 
   Future<void> _signInAnonymously() async {
@@ -103,6 +69,7 @@ class _MyHomePageState extends State<MyHomePage> {
         _checkTodaysLog();
       }
     } catch (e) {
+      // print("Failed to sign in anonymously: $e");
     }
   }
 
@@ -183,7 +150,7 @@ class _MyHomePageState extends State<MyHomePage> {
   }
 
   Future<void> _submitEntry(String notes) async {
-    final String currentMood = _getLabel(_currentValue);
+    final String currentMood = MoodService.getMoodText(_currentValue);
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) {
       return;
@@ -258,6 +225,7 @@ class _MyHomePageState extends State<MyHomePage> {
   Future<void> _showStreakDialog(int oldStreak, int newStreak) async {
     if (newStreak <= oldStreak) return;
 
+    // ✨ Get screen width for responsive font sizes
     final screenWidth = MediaQuery.of(context).size.width;
 
     await showDialog(
@@ -351,31 +319,17 @@ class _MyHomePageState extends State<MyHomePage> {
     super.dispose();
   }
 
-  String _getLabel(double value) {
-    if (value < 0.2) return texts[0];
-    if (value < 0.4) return texts[1];
-    if (value < 0.6) return texts[2];
-    if (value < 0.8) return texts[3];
-    return texts[4];
-  }
-
-  String _getEmoji(double value) {
-    if (value < 0.2) return emojis[0];
-    if (value < 0.4) return emojis[1];
-    if (value < 0.6) return emojis[2];
-    if (value < 0.8) return emojis[3];
-    return emojis[4];
-  }
-
   @override
   Widget build(BuildContext context) {
-    final gradient = _calculateAnimatedGradient();
-    final moodText = _getLabel(_currentValue);
-    final moodEmoji = _getEmoji(_currentValue);
+    final gradient = MoodService.calculateAnimatedGradient(_currentValue);
+    final moodText = MoodService.getMoodText(_currentValue);
+    final moodEmoji = MoodService.getMoodEmoji(_currentValue);
 
+    // ✨ Get screen dimensions once for responsive calculations
     final screenWidth = MediaQuery.of(context).size.width;
     final screenHeight = MediaQuery.of(context).size.height;
 
+    // ✨ Base font size for scaling
     final baseFontSize = screenWidth * 0.05;
 
     return Scaffold(
@@ -395,6 +349,7 @@ class _MyHomePageState extends State<MyHomePage> {
               child: Column(
                 children: [
                   Padding(
+                    // ✨ Responsive padding
                     padding: EdgeInsets.only(top: screenHeight * 0.02),
                     child: Text(
                       widget.title,
@@ -409,6 +364,7 @@ class _MyHomePageState extends State<MyHomePage> {
                   Column(
                     children: [
                       Padding(
+                        // ✨ Responsive padding
                         padding: EdgeInsets.only(bottom: screenHeight * 0.025),
                         child: AnimatedSwitcher(
                           duration: const Duration(milliseconds: 500),
@@ -432,6 +388,7 @@ class _MyHomePageState extends State<MyHomePage> {
                       ),
                       SizedBox(height: screenHeight * 0.025),
                       Padding(
+                        // ✨ Responsive padding
                         padding: EdgeInsets.only(bottom: screenHeight * 0.03),
                         child: AnimatedContainer(
                           duration: const Duration(milliseconds: 500),
@@ -447,8 +404,10 @@ class _MyHomePageState extends State<MyHomePage> {
                             data: SliderTheme.of(context).copyWith(
                               trackHeight: 0,
                               thumbShape: RoundSliderThumbShape(
+                                // ✨ Responsive thumb radius
                                   enabledThumbRadius: screenHeight * 0.025),
                               overlayShape: RoundSliderOverlayShape(
+                                // ✨ Responsive overlay radius
                                   overlayRadius: screenHeight * 0.035),
                               thumbColor: Colors.white,
                               activeTrackColor: Colors.transparent,
