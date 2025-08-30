@@ -1,6 +1,7 @@
 // lib/detailed_view.dart
 
 import 'dart:math' as math;
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -33,6 +34,185 @@ class _EntryDetailsPageState extends State<EntryDetailsPage>
   late Future<List<FlSpot>> _weeklyMoodData;
   late Future<List<FlSpot>> _dailyMoodData;
   late Future<List<FlSpot>> _monthlyMoodData;
+
+  final GlobalKey _streakCounterKey = GlobalKey();
+
+  Future<Map<DateTime, int>> _fetchLast10DaysMood() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return {};
+
+    final now = DateTime.now();
+    final startDate = DateTime(now.year, now.month, now.day).subtract(const Duration(days: 9));
+
+    final querySnapshot = await FirebaseFirestore.instance
+        .collection('entries')
+        .where('userId', isEqualTo: user.uid)
+        .where('timestamp', isGreaterThanOrEqualTo: startDate)
+        .get();
+
+    final Map<DateTime, List<double>> moodValuesByDate = {};
+
+    for (var doc in querySnapshot.docs) {
+      final serverTimestamp = (doc.data()['timestamp'] as Timestamp).toDate();
+      final localTimestamp = serverTimestamp.toLocal();
+      final dateKey = DateTime(localTimestamp.year, localTimestamp.month, localTimestamp.day);
+      final moodValue = _moodToValue(doc.data()['mood']);
+      moodValuesByDate.update(dateKey, (value) => [...value, moodValue], ifAbsent: () => [moodValue]);
+    }
+
+    final Map<DateTime, int> dailyMoods = {};
+    moodValuesByDate.forEach((date, moods) {
+      final avgMood = moods.reduce((a, b) => a + b) / moods.length;
+      dailyMoods[date] = avgMood.round();
+    });
+
+    return dailyMoods;
+  }
+
+  Future<String> _calculateAverageMood() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return "Not available";
+
+    // Query for all entries within the current streak
+    final querySnapshot = await FirebaseFirestore.instance
+        .collection('entries')
+        .where('userId', isEqualTo: user.uid)
+        .where('timestamp', isGreaterThanOrEqualTo: widget.streakStartDate)
+        .get();
+
+    if (querySnapshot.docs.isEmpty) {
+      return _valueToMood(_moodToValue(widget.mood)); // Fallback to today's mood
+    }
+
+    // Sum the mood values
+    double totalMoodValue = 0;
+    for (var doc in querySnapshot.docs) {
+      totalMoodValue += _moodToValue(doc.data()['mood']);
+    }
+
+    // Calculate the average
+    final averageValue = totalMoodValue / querySnapshot.docs.length;
+
+    // Convert the average value back to a mood string (e.g., "Good")
+    return _valueToMood(averageValue);
+  }
+
+  void _showStreakDetailsDialog() async {
+    final String averageMood = await _calculateAverageMood();
+
+    // 1. Get the position of the streak counter on the screen
+    final RenderBox renderBox = _streakCounterKey.currentContext!.findRenderObject() as RenderBox;
+    final size = renderBox.size;
+    final position = renderBox.localToGlobal(Offset.zero);
+
+    // We replace showDialog with showGeneralDialog for custom animations
+    showGeneralDialog(
+      context: context,
+      barrierDismissible: true,
+      barrierLabel: 'Dismiss',
+      barrierColor: Colors.black.withOpacity(0.5), // The dimming color
+      transitionDuration: const Duration(milliseconds: 300),
+      pageBuilder: (context, animation, secondaryAnimation) {
+        // This is a required placeholder. The actual UI is in the transitionBuilder.
+        return Container();
+      },
+      transitionBuilder: (context, animation, secondaryAnimation, child) {
+        final screenWidth = MediaQuery.of(context).size.width;
+        final baseFontSize = screenWidth * 0.04;
+        final formattedDate = DateFormat.yMMMMd().format(widget.streakStartDate);
+
+        // Create a curved animation for a smoother effect
+        final scaleAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+          CurvedAnimation(parent: animation, curve: Curves.easeInOut),
+        );
+
+        // 2. Wrap your existing dialog UI in a ScaleTransition
+        return ScaleTransition(
+          scale: scaleAnimation,
+          // This alignment makes the animation originate from the streak counter
+          alignment: Alignment(
+            (position.dx + size.width / 2) / screenWidth * 2 - 1,
+            (position.dy + size.height / 2) / MediaQuery.of(context).size.height * 2 - 1,
+          ),
+          // YOUR ORIGINAL UI CODE STARTS HERE (UNCHANGED)
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 5, sigmaY: 5),
+            child: Dialog(
+              backgroundColor: Colors.transparent,
+              child: Stack(
+                children: [
+                  Container(
+                    width: double.infinity,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(20),
+                      gradient: LinearGradient(
+                        colors: [Colors.deepPurple.shade400, Colors.deepPurple.shade800],
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                      ),
+                      border: Border.all(color: Colors.deepPurple.shade300, width: 2),
+                    ),
+                    child: Padding(
+                      padding: EdgeInsets.all(screenWidth * 0.06),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.local_fire_department_rounded, color: Colors.orange.shade400, size: baseFontSize * 3),
+                          SizedBox(height: 16),
+                          Text(
+                            "You're on a ${widget.currentStreak}-day streak!",
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: baseFontSize * 1.4,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          SizedBox(height: 8),
+                          Text(
+                            "This streak started on $formattedDate.",
+                            textAlign: TextAlign.center,
+                            style: TextStyle(color: Colors.white70, fontSize: baseFontSize * 0.9),
+                          ),
+                          SizedBox(height: 20),
+                          const Divider(color: Colors.white24),
+                          SizedBox(height: 20),
+                          Text(
+                            "Your average mood during this streak has been:",
+                            textAlign: TextAlign.center,
+                            style: TextStyle(color: Colors.white70, fontSize: baseFontSize * 0.9),
+                          ),
+                          SizedBox(height: 8),
+                          Text(
+                            averageMood,
+                            style: TextStyle(
+                              color: Colors.amber,
+                              fontSize: baseFontSize * 1.3,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  Positioned(
+                    top: 8,
+                    right: 8,
+                    child: IconButton(
+                      icon: Icon(Icons.close, color: Colors.grey[400]),
+                      onPressed: () {
+                        Navigator.of(context).pop();
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
 
   double _customDistanceCalculator(Offset touchPoint, Offset spotPixelCoordinates) {
     final dx = touchPoint.dx - spotPixelCoordinates.dx;
@@ -229,7 +409,7 @@ class _EntryDetailsPageState extends State<EntryDetailsPage>
       extendBodyBehindAppBar: true,
       backgroundColor: Colors.deepPurple.shade200,
       appBar: AppBar(
-        title: const Text('Entry Saved!'),
+        title: const Text('Log Details'),
         backgroundColor: Colors.transparent,
         elevation: 0,
         foregroundColor: Colors.white,
@@ -244,25 +424,78 @@ class _EntryDetailsPageState extends State<EntryDetailsPage>
         ),
         child: SafeArea(
           child: SingleChildScrollView(
-            padding: EdgeInsets.all(screenWidth * 0.05),
+            padding: EdgeInsets.all(screenWidth * 0.04),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  'Your Mood Today:',
-                  style: TextStyle(
-                    color: Colors.white70,
-                    fontSize: baseFontSize,
-                  ),
-                ),
-                SizedBox(height: screenHeight * 0.01),
-                Text(
-                  widget.mood,
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: baseFontSize * 1.8,
-                    fontWeight: FontWeight.bold,
-                  ),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Padding(
+                      padding: EdgeInsets.only(right: screenWidth * 0.05),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Your Mood Today:',
+                            style: TextStyle(
+                              color: Colors.white70,
+                              fontSize: baseFontSize,
+                            ),
+                          ),
+                          SizedBox(height: screenHeight * 0.01),
+                          Text(
+                            widget.mood,
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: baseFontSize * 2.0,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    InkWell(
+                      key: _streakCounterKey,
+                      onTap: _showStreakDetailsDialog,
+                      borderRadius: BorderRadius.circular(12),
+                      child: Padding(
+                        padding: const EdgeInsets.all(2.0),
+                        child: Row(
+                          children: [
+                            Text(
+                              '${widget.currentStreak}',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: baseFontSize * 2.0,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            SizedBox(width: screenWidth * 0.01),
+                            Container(
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.orange.withOpacity(0.4),
+                                    blurRadius: 12.0,
+                                    spreadRadius: 1.0,
+                                  ),
+                                ],
+                              ),
+                              child: Icon(
+                                Icons.local_fire_department_rounded,
+                                color: Colors.orange.shade400,
+                                size: baseFontSize * 2.0,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
                 SizedBox(height: screenHeight * 0.02),
                 Text(
@@ -272,7 +505,7 @@ class _EntryDetailsPageState extends State<EntryDetailsPage>
                     fontSize: baseFontSize,
                   ),
                 ),
-                SizedBox(height: screenHeight * 0.01),
+                SizedBox(height: screenHeight * 0.02),
                 Container(
                   padding: EdgeInsets.all(screenWidth * 0.04),
                   width: double.infinity,
@@ -302,74 +535,89 @@ class _EntryDetailsPageState extends State<EntryDetailsPage>
   }
 
   Widget _buildCalendar(double screenWidth, double screenHeight) {
-    final List<Widget> calendarDays = [];
-    final int streakBlock = ((widget.currentStreak - 1) / 10).floor();
-    final DateTime calendarStartDate =
-    widget.streakStartDate.add(Duration(days: streakBlock * 10));
-
     final baseFontSize = screenWidth * 0.04;
 
-    for (int i = 0; i < 10; i++) {
-      final date = calendarStartDate.add(Duration(days: i));
-      final now = DateTime.now();
-      final isToday = date.year == now.year &&
-          date.month == now.month &&
-          date.day == now.day;
-      final bool isMarked = date.isBefore(now) || isToday;
-
-      calendarDays.add(
-        Container(
-          margin: EdgeInsets.symmetric(horizontal: screenWidth * 0.01),
-          padding: EdgeInsets.symmetric(vertical: screenHeight * 0.015, horizontal: screenWidth * 0.02),
-          width: screenWidth * 0.16,
-          decoration: BoxDecoration(
-            color: isMarked
-                ? Colors.deepPurple.shade300.withOpacity(0.8)
-                : Colors.black.withOpacity(0.1),
-            borderRadius: BorderRadius.circular(12),
-            border: isToday
-                ? Border.all(color: Colors.deepPurple.shade200, width: 2)
-                : null,
-          ),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Text(
-                DateFormat.E().format(date),
-                style: TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                    fontSize: baseFontSize * 0.9),
-              ),
-              SizedBox(height: screenHeight * 0.005),
-              Text(
-                date.day.toString(),
-                style: TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                    fontSize: baseFontSize * 1.1),
-              ),
-              SizedBox(height: screenHeight * 0.005),
-              if (isMarked)
-                Icon(Icons.check_circle, color: Colors.white, size: baseFontSize)
-              else
-                SizedBox(height: baseFontSize),
-            ],
-          ),
-        ),
-      );
-    }
+    final Map<int, Color> colorThresholds = {
+      1: Colors.indigo.shade900.withOpacity(0.8) ,        // Very Low
+      2: Colors.deepPurple.shade900.withOpacity(0.8),     // Low
+      3: Colors.brown.shade800.withOpacity(0.8),          // Neutral (New)
+      4: Colors.deepOrange.shade300.withOpacity(0.8),     // Good
+      5: Colors.deepOrange.shade800.withOpacity(0.8),     // Very Good
+    };
 
     return Column(
       children: [
         Text(
-          "Your Streak Calendar",
+          "Your Calendar Heatmap",
           style: TextStyle(color: Colors.white70, fontSize: baseFontSize * 0.9),
         ),
         SizedBox(height: screenHeight * 0.015),
-        SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          child: Row(children: calendarDays),
+        FutureBuilder<Map<DateTime, int>>(
+          future: _fetchLast10DaysMood(), // Call the new data fetching function
+          builder: (context, snapshot) {
+            if (!snapshot.hasData) {
+              return const SizedBox(height: 100, child: Center(child: CircularProgressIndicator()));
+            }
+
+            final dailyMoods = snapshot.data!;
+            final List<Widget> calendarDays = [];
+            final int streakBlock = ((widget.currentStreak - 1) / 10).floor();
+            final DateTime calendarStartDate = widget.streakStartDate.add(Duration(days: streakBlock * 10));
+
+            for (int i = 0; i < 10; i++) {
+              final date = calendarStartDate.add(Duration(days: i));
+              final dateKey = DateTime(date.year, date.month, date.day);
+              final now = DateTime.now();
+              final isToday = date.year == now.year && date.month == now.month && date.day == now.day;
+              final bool isMarked = date.isBefore(now) || isToday;
+
+              Color backgroundColor;
+              if (isMarked && dailyMoods.containsKey(dateKey)) {
+                backgroundColor = colorThresholds[dailyMoods[dateKey]] ?? Colors.black.withOpacity(0.1);
+              } else if (isMarked) {
+                backgroundColor = Colors.deepPurple.shade300.withOpacity(0.8);
+              } else {
+                backgroundColor = Colors.black.withOpacity(0.1);
+              }
+
+              calendarDays.add(
+                Container(
+                  margin: EdgeInsets.symmetric(horizontal: screenWidth * 0.01),
+                  padding: EdgeInsets.symmetric(vertical: screenHeight * 0.015, horizontal: screenWidth * 0.02),
+                  width: screenWidth * 0.16,
+                  decoration: BoxDecoration(
+                    color: backgroundColor,
+                    borderRadius: BorderRadius.circular(12),
+                    border: isToday ? Border.all(color: Colors.deepPurple.shade200, width: 2) : null,
+                  ),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        DateFormat.E().format(date),
+                        style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: baseFontSize * 0.9),
+                      ),
+                      SizedBox(height: screenHeight * 0.005),
+                      Text(
+                        date.day.toString(),
+                        style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: baseFontSize * 1.1),
+                      ),
+                      SizedBox(height: screenHeight * 0.005),
+                      if (isMarked)
+                        Icon(Icons.check_circle, color: Colors.white, size: baseFontSize)
+                      else
+                        SizedBox(height: baseFontSize),
+                    ],
+                  ),
+                ),
+              );
+            }
+
+            return SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(children: calendarDays),
+            );
+          },
         ),
       ],
     );
@@ -515,7 +763,7 @@ class _EntryDetailsPageState extends State<EntryDetailsPage>
                 leftTitles: AxisTitles(sideTitles: _leftTitles(screenWidth)),
                 bottomTitles: AxisTitles(sideTitles: _bottomTitlesDaily(screenWidth)),
                 rightTitles:
-                const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                const AxisTitles(sideTitles: SideTitles(showTitles: false, reservedSize: 55)),
               ),
               borderData: FlBorderData(
                 show: true,
@@ -843,7 +1091,7 @@ class _EntryDetailsPageState extends State<EntryDetailsPage>
   SideTitles _leftTitles(double screenWidth) {
     return SideTitles(
       showTitles: true,
-      reservedSize: 55,
+      reservedSize: 39,
       interval: 1,
       getTitlesWidget: (value, meta) {
         String emoji;
