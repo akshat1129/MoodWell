@@ -1,6 +1,5 @@
 name: mood_well
-description: "A new Flutter project to track and log daily moods."
-# Prevent accidental publishing to pub.dev.
+description: "A Flutter app to track and log daily moods."
 publish_to: 'none'
 
 version: 1.0.0+1
@@ -22,15 +21,21 @@ dependencies:
   animated_digit: ^3.3.0
   intl: ^0.19.0
   simple_animations: ^5.0.2
-  fl_chart: 0.63.0
-  flutter_launcher_icons: ^0.14.4
+  fl_chart: ^0.63.0
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^4.0.0
+  flutter_launcher_icons: ^0.14.4
 
 flutter:
   uses-material-design: true
   assets:
     - assets/images/
+
+# This is the configuration block that was missing
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: "assets/images/logo.png"
