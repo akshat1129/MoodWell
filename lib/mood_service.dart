@@ -102,7 +102,6 @@ class MoodService {
     return calendarColors[moodValue] ?? Colors.black.withOpacity(0.1);
   }
 
-  /// Calculate animated gradient for slider background
   static LinearGradient calculateAnimatedGradient(double sliderValue) {
     final position = sliderValue * (moodColors.length - 1);
     final fromIndex = position.floor();

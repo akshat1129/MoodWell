@@ -3,6 +3,7 @@
 import 'package:flutter/material.dart';
 import 'detailed_view.dart';
 import 'mood_service.dart';
+import 'sentiment_analyzer.dart';
 import 'dart:ui';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -52,24 +53,41 @@ class _MyHomePageState extends State<MyHomePage> {
   bool _isSubmitting = false;
   bool _isAuthReady = false;
   bool _hasLoggedToday = false;
+  final SentimentAnalyzer _analyzer = SentimentAnalyzer();
+  bool _isModelLoaded = false;
 
   @override
   void initState() {
     super.initState();
     _signInAnonymously();
+    _loadModel();
+  }
+
+  Future<void> _loadModel() async {
+    print("🕵️‍♂️ Loading model...");
+
+    final bool success = await _analyzer.loadModel();
+
+    if (success && mounted) {
+      setState(() {
+        _isModelLoaded = true;
+      });
+    }
   }
 
   Future<void> _signInAnonymously() async {
+    print("🕵️‍♂️ Signing in...");
     try {
       await FirebaseAuth.instance.signInAnonymously();
       if (mounted) {
         setState(() {
           _isAuthReady = true;
         });
+        print("✅ Auth is ready!");
         _checkTodaysLog();
       }
     } catch (e) {
-      // print("Failed to sign in anonymously: $e");
+      print("🚨 FAILED to sign in: $e");
     }
   }
 
@@ -150,11 +168,9 @@ class _MyHomePageState extends State<MyHomePage> {
   }
 
   Future<void> _submitEntry(String notes) async {
-    final String currentMood = MoodService.getMoodText(_currentValue);
+    // The user check and setState for submitting remain the same
     final user = FirebaseAuth.instance.currentUser;
-    if (user == null) {
-      return;
-    }
+    if (user == null) return;
 
     setState(() {
       _isSubmitting = true;
@@ -162,14 +178,25 @@ class _MyHomePageState extends State<MyHomePage> {
     });
 
     try {
+      String textSentiment = "neutral"; // A default value
+      if (notes.isNotEmpty && _isModelLoaded) {
+        final predictionMap = _analyzer.predict(notes);
+        textSentiment = predictionMap['label'] as String;
+      }
+      // Log the prediction to the console to see it working!
+      print("Model's prediction for the text is: $textSentiment");
+
+
       final streakValues = await _updateStreak(user.uid);
       final int oldStreak = streakValues['old']!;
       final int newStreak = streakValues['new']!;
 
+      //Prediction
       await FirebaseFirestore.instance.collection('entries').add({
         'userId': user.uid,
-        'mood': currentMood,
+        'mood': MoodService.getMoodText(_currentValue), // The slider's mood
         'notes': notes,
+        'predictedSentiment': textSentiment, // 💾 The model's prediction
         'timestamp': FieldValue.serverTimestamp(),
       });
 
@@ -177,6 +204,7 @@ class _MyHomePageState extends State<MyHomePage> {
         _hasLoggedToday = true;
       });
 
+      // The rest of your function remains exactly the same...
       if (mounted) {
         await _showStreakDialog(oldStreak, newStreak);
       }
@@ -190,7 +218,7 @@ class _MyHomePageState extends State<MyHomePage> {
         context,
         _createBlurInRoute(
           EntryDetailsPage(
-            mood: currentMood,
+            mood: MoodService.getMoodText(_currentValue),
             notes: notes,
             hasLoggedToday: _hasLoggedToday,
             currentStreak: finalStreak,
@@ -205,7 +233,10 @@ class _MyHomePageState extends State<MyHomePage> {
         _textController.clear();
         _currentValue = 0.5;
       });
-    } catch (e) {
+
+    } catch (e, stackTrace) {
+      print("🚨🚨🚨 ERROR DURING SUBMISSION: $e");
+      print("🚨 STACK TRACE: $stackTrace");
       if (!mounted) return;
 
       ScaffoldMessenger.of(context).showSnackBar(
@@ -214,7 +245,6 @@ class _MyHomePageState extends State<MyHomePage> {
           backgroundColor: Colors.redAccent,
         ),
       );
-
       setState(() {
         _isBlurred = false;
         _isSubmitting = false;
@@ -225,7 +255,6 @@ class _MyHomePageState extends State<MyHomePage> {
   Future<void> _showStreakDialog(int oldStreak, int newStreak) async {
     if (newStreak <= oldStreak) return;
 
-    // ✨ Get screen width for responsive font sizes
     final screenWidth = MediaQuery.of(context).size.width;
 
     await showDialog(
@@ -316,6 +345,7 @@ class _MyHomePageState extends State<MyHomePage> {
   @override
   void dispose() {
     _textController.dispose();
+    _analyzer.close();
     super.dispose();
   }
 
@@ -475,10 +505,10 @@ class _MyHomePageState extends State<MyHomePage> {
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(30),
                         ),
-                        // ✨ Responsive padding
                         padding: EdgeInsets.symmetric(vertical: screenHeight * 0.018),
                       ),
-                      onPressed: _isSubmitting || !_isAuthReady
+
+                      onPressed: _isSubmitting || !_isAuthReady || !_isModelLoaded
                           ? null
                           : () async {
                         final String notes =

@@ -111,9 +111,9 @@
     },
     {
       "name": "ffi",
-      "rootUri": "file:///C:/Users/Akshat/AppData/Local/Pub/Cache/hosted/pub.dev/ffi-2.1.4",
+      "rootUri": "file:///C:/Users/Akshat/AppData/Local/Pub/Cache/hosted/pub.dev/ffi-2.1.0",
       "packageUri": "lib/",
-      "languageVersion": "3.7"
+      "languageVersion": "3.0"
     },
     {
       "name": "firebase_auth",
@@ -278,6 +278,12 @@
       "languageVersion": "3.0"
     },
     {
+      "name": "quiver",
+      "rootUri": "file:///C:/Users/Akshat/AppData/Local/Pub/Cache/hosted/pub.dev/quiver-3.2.2",
+      "packageUri": "lib/",
+      "languageVersion": "2.17"
+    },
+    {
       "name": "simple_animations",
       "rootUri": "file:///C:/Users/Akshat/AppData/Local/Pub/Cache/hosted/pub.dev/simple_animations-5.2.0",
       "packageUri": "lib/",
@@ -326,6 +332,12 @@
       "languageVersion": "3.5"
     },
     {
+      "name": "tflite_flutter",
+      "rootUri": "file:///C:/Users/Akshat/AppData/Local/Pub/Cache/hosted/pub.dev/tflite_flutter-0.11.0",
+      "packageUri": "lib/",
+      "languageVersion": "3.3"
+    },
+    {
       "name": "typed_data",
       "rootUri": "file:///C:/Users/Akshat/AppData/Local/Pub/Cache/hosted/pub.dev/typed_data-1.4.0",
       "packageUri": "lib/",
@@ -362,7 +374,7 @@
       "languageVersion": "3.4"
     },
     {
-      "name": "mood_well",
+      "name": "login_signup",
       "rootUri": "../",
       "packageUri": "lib/",
       "languageVersion": "3.2"
@@ -371,6 +383,6 @@
   "generator": "pub",
   "generatorVersion": "3.9.0",
   "flutterRoot": "file:///C:/flutter/src/flutter",
-  "flutterVersion": "3.35.1",
+  "flutterVersion": "3.35.2",
   "pubCache": "file:///C:/Users/Akshat/AppData/Local/Pub/Cache"
 }
