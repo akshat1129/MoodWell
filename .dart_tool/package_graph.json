@@ -14,6 +14,7 @@
         "firebase_core",
         "fl_chart",
         "flutter",
+        "flutter_heatmap_calendar",
         "intl",
         "simple_animations",
         "tflite_flutter"
@@ -60,6 +61,13 @@
         "stream_channel",
         "test_api",
         "vector_math"
+      ]
+    },
+    {
+      "name": "flutter_heatmap_calendar",
+      "version": "1.0.5",
+      "dependencies": [
+        "flutter"
       ]
     },
     {

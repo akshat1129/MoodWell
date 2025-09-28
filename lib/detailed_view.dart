@@ -82,19 +82,18 @@ class _EntryDetailsPageState extends State<EntryDetailsPage>
         .get();
 
     if (querySnapshot.docs.isEmpty) {
-      // ✨ USE MoodService
+
       return MoodService.valueToMood(MoodService.moodToValue(widget.mood));
     }
 
     double totalMoodValue = 0;
     for (var doc in querySnapshot.docs) {
-      // ✨ USE MoodService
+
       totalMoodValue += MoodService.moodToValue(doc.data()['mood']);
     }
 
     final averageValue = totalMoodValue / querySnapshot.docs.length;
 
-    // ✨ USE MoodService
     return MoodService.valueToMood(averageValue);
   }
 
@@ -223,7 +222,6 @@ class _EntryDetailsPageState extends State<EntryDetailsPage>
     _monthlyMoodData = _fetchMonthlyMoodData();
   }
 
-  // ✨ REMOVED _valueToMood function
 
   String _formatHour(double hourValue) {
     int hours = hourValue.floor();
@@ -242,10 +240,10 @@ class _EntryDetailsPageState extends State<EntryDetailsPage>
     return "${hours.toString()}:${minutes.toString().padLeft(2, '0')} $period";
   }
 
-  // ✨ REMOVED _moodToValue function
 
   Future<List<FlSpot>> _fetchDailyMoodData() async {
     final user = FirebaseAuth.instance.currentUser;
+    print("DEBUG: Querying data for user ID: ${user?.uid}");
     if (user == null) return [];
 
     final nowLocal = DateTime.now();
@@ -263,14 +261,12 @@ class _EntryDetailsPageState extends State<EntryDetailsPage>
     List<FlSpot> spots = querySnapshot.docs.map((doc) {
       final serverTimestamp = (doc.data()['timestamp'] as Timestamp).toDate();
       final localTimestamp = serverTimestamp.toLocal();
-      // ✨ USE MoodService
       final moodValue = MoodService.moodToValue(doc.data()['mood']);
       final hour = localTimestamp.hour.toDouble() + (localTimestamp.minute.toDouble() / 60.0);
       return FlSpot(hour, moodValue);
     }).toList();
 
     final currentHour = nowLocal.hour.toDouble() + (nowLocal.minute.toDouble() / 60.0);
-    // ✨ USE MoodService
     final currentMoodValue = MoodService.moodToValue(widget.mood);
     final currentSpot = FlSpot(currentHour, currentMoodValue);
 
@@ -304,7 +300,6 @@ class _EntryDetailsPageState extends State<EntryDetailsPage>
       final serverTimestamp = (data['timestamp'] as Timestamp).toDate();
       final localTimestamp = serverTimestamp.toLocal();
       final dateKey = DateFormat('yyyy-MM-dd').format(localTimestamp);
-      // ✨ USE MoodService
       final moodValue = MoodService.moodToValue(data['mood']);
 
       moodValuesByDate.update(dateKey, (value) => [...value, moodValue], ifAbsent: () => [moodValue]);
@@ -505,42 +500,65 @@ class _EntryDetailsPageState extends State<EntryDetailsPage>
   Widget _buildCalendar(double screenWidth, double screenHeight) {
     final baseFontSize = screenWidth * 0.04;
 
-    // ✨ REMOVED local colorThresholds map
-
     return Column(
       children: [
         Text(
-          "Your Calendar Heatmap",
+          "10-Day Goal Calendar", // Updated title
           style: TextStyle(color: Colors.white70, fontSize: baseFontSize * 0.9),
         ),
         SizedBox(height: screenHeight * 0.015),
         FutureBuilder<Map<DateTime, int>>(
           future: _fetchLast10DaysMood(),
           builder: (context, snapshot) {
-            if (!snapshot.hasData) {
+            // Note: The data fetching still looks at past data.
+            // This UI change only affects which dates are displayed.
+            if (snapshot.connectionState == ConnectionState.waiting) {
               return const SizedBox(height: 100, child: Center(child: CircularProgressIndicator()));
             }
 
-            final dailyMoods = snapshot.data!;
+            final dailyMoods = snapshot.data ?? {};
             final List<Widget> calendarDays = [];
-            final int streakBlock = ((widget.currentStreak - 1) / 10).floor();
-            final DateTime calendarStartDate = widget.streakStartDate.add(Duration(days: streakBlock * 10));
+            final now = DateTime.now();
+
+            // --- THIS IS THE KEY CHANGE ---
+            // Start the calendar from today's date
+            final DateTime calendarStartDate = DateTime(now.year, now.month, now.day);
 
             for (int i = 0; i < 10; i++) {
+              // Show today and the next 9 days
               final date = calendarStartDate.add(Duration(days: i));
               final dateKey = DateTime(date.year, date.month, date.day);
-              final now = DateTime.now();
-              final isToday = date.year == now.year && date.month == now.month && date.day == now.day;
+              final isToday = i == 0;
               final bool isMarked = date.isBefore(now) || isToday;
               final moodValue = dailyMoods[dateKey];
 
               Color backgroundColor;
               if (isMarked && moodValue != null) {
-                // ✨ USE MoodService
-                backgroundColor = MoodService.getCalendarColor(moodValue);
+                // --- THIS IS THE NEW COLOR LOGIC, ONLY FOR THE CALENDAR ---
+                switch (moodValue) {
+                  case 1: // Very Low
+                    backgroundColor = Colors.deepPurple.shade700;
+                    break;
+                  case 2: // Low
+                    backgroundColor = Colors.deepPurple.shade400;
+                    break;
+                  case 3: // Neutral
+                    backgroundColor = Colors.grey;
+                    break;
+                  case 4: // Good
+                    backgroundColor = Colors.amber.shade600;
+                    break;
+                  case 5: // Very Good
+                    backgroundColor = Colors.amber.shade800;
+                    break;
+                  default:
+                    backgroundColor = Colors.grey.shade800;
+                }
               } else if (isMarked) {
+                // Days with no entries
                 backgroundColor = Colors.deepPurple.shade300.withOpacity(0.8);
               } else {
+                // Future days (if any)
                 backgroundColor = Colors.black.withOpacity(0.1);
               }
 
@@ -552,7 +570,7 @@ class _EntryDetailsPageState extends State<EntryDetailsPage>
                   decoration: BoxDecoration(
                     color: backgroundColor,
                     borderRadius: BorderRadius.circular(12),
-                    border: isToday ? Border.all(color: Colors.deepPurple.shade200, width: 2) : null,
+                    border: isToday ? Border.all(color: Colors.white, width: 2) : null,
                   ),
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
@@ -567,7 +585,8 @@ class _EntryDetailsPageState extends State<EntryDetailsPage>
                         style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: baseFontSize * 1.1),
                       ),
                       SizedBox(height: screenHeight * 0.005),
-                      if (isMarked)
+                      // Only show checkmark for today if a log exists
+                      if (isToday && moodValue != null)
                         Icon(Icons.check_circle, color: Colors.white, size: baseFontSize)
                       else
                         SizedBox(height: baseFontSize),

@@ -164,6 +164,12 @@
       "languageVersion": "3.8"
     },
     {
+      "name": "flutter_heatmap_calendar",
+      "rootUri": "file:///C:/Users/Akshat/AppData/Local/Pub/Cache/hosted/pub.dev/flutter_heatmap_calendar-1.0.5",
+      "packageUri": "lib/",
+      "languageVersion": "2.12"
+    },
+    {
       "name": "flutter_launcher_icons",
       "rootUri": "file:///C:/Users/Akshat/AppData/Local/Pub/Cache/hosted/pub.dev/flutter_launcher_icons-0.14.4",
       "packageUri": "lib/",
